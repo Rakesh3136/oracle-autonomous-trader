@@ -1,7 +1,7 @@
-"""Regime-conditioned model evaluation and model-selection helpers."""
+"""Regime-conditioned model evaluation and selection helpers."""
 from dataclasses import dataclass
 from collections import defaultdict
-from oracle.learning.regime import Regime, RegimeEngine
+from oracle.learning.regime import Regime
 from oracle.learning.model import LogisticBaseline
 from oracle.learning.dataset_builder import TrainingRow
 
@@ -13,22 +13,12 @@ class RegimeReport:
     average_return: float
 
 class RegimeModelEvaluator:
-    def __init__(self) -> None:
-        self.regime_engine = RegimeEngine()
-
     def evaluate(self, model: LogisticBaseline, rows: list[TrainingRow]) -> list[RegimeReport]:
         buckets: dict[Regime, list[TrainingRow]] = defaultdict(list)
         for row in rows:
-            # Features are timestamp-aligned; regime is reconstructed from the
-            # available historical feature context supplied by the caller.
-            # Rows without sufficient context are conservatively omitted.
-            try:
-                regime = Regime.RANGE
-                buckets[regime].append(row)
-            except ValueError:
-                continue
+            buckets[row.regime].append(row)
         reports: list[RegimeReport] = []
-        for regime, bucket in buckets.items():
+        for regime, bucket in sorted(buckets.items(), key=lambda item: item[0].value):
             correct = 0
             returns: list[float] = []
             for row in bucket:
@@ -38,3 +28,6 @@ class RegimeModelEvaluator:
                 returns.append(row.label.future_return)
             reports.append(RegimeReport(regime, len(bucket), correct / len(bucket), sum(returns) / len(returns)))
         return reports
+
+    def weakest_regime(self, reports: list[RegimeReport]) -> RegimeReport | None:
+        return min(reports, key=lambda r: (r.accuracy, r.average_return)) if reports else None
