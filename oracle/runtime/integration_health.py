@@ -27,7 +27,7 @@ class IntegrationHealth:
             try:
                 import_module(name)
                 checks[name] = True
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — health check must report any import failure.
                 checks[name] = False
                 failures.append(f"{name}: {type(exc).__name__}")
         return HealthReport(not failures, checks, tuple(failures))
