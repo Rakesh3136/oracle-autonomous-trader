@@ -35,6 +35,6 @@ class MarketReplay:
             try:
                 if on_tick(tick):
                     decisions += 1
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — replay must record any callback failure and continue.
                 errors.append(f"tick handler error: {type(exc).__name__}")
         return ReplayResult(len(ordered), decisions, tuple(errors))
