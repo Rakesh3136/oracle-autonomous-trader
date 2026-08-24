@@ -3,9 +3,8 @@
 Only public market-data endpoints live here. Trading/account endpoints will be
 added behind separate authenticated interfaces after paper execution exists.
 """
-
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -24,9 +23,14 @@ class BybitPublicRest(ExchangeAdapter):
         response = await self._client.get(path, params=params)
         response.raise_for_status()
         payload = response.json()
+        if not isinstance(payload, dict):
+            raise RuntimeError("Bybit API returned a non-object response")
         if payload.get("retCode") != 0:
             raise RuntimeError(f"Bybit API error: {payload.get('retCode')} {payload.get('retMsg')}")
-        return payload["result"]
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            raise RuntimeError("Bybit API response has an invalid result")
+        return cast(dict[str, Any], result)
 
     async def get_candles(self, symbol: str, interval: str, limit: int = 200) -> list[Candle]:
         result = await self._get(
@@ -34,8 +38,12 @@ class BybitPublicRest(ExchangeAdapter):
             {"category": self.CATEGORY, "symbol": symbol.upper(), "interval": interval, "limit": limit},
         )
         rows = result.get("list", [])
+        if not isinstance(rows, list):
+            raise RuntimeError("Bybit kline result has an invalid list")
         candles: list[Candle] = []
         for row in reversed(rows):
+            if not isinstance(row, list) or len(row) < 6:
+                raise RuntimeError("Bybit kline row has an invalid shape")
             candles.append(
                 Candle(
                     symbol=symbol.upper(),
@@ -55,11 +63,15 @@ class BybitPublicRest(ExchangeAdapter):
             "/v5/market/orderbook",
             {"category": self.CATEGORY, "symbol": symbol.upper(), "limit": depth},
         )
+        bids = result.get("b", [])
+        asks = result.get("a", [])
+        if not isinstance(bids, list) or not isinstance(asks, list):
+            raise RuntimeError("Bybit order book result has an invalid shape")
         return OrderBook(
             symbol=symbol.upper(),
             timestamp=datetime.fromtimestamp(int(result["ts"]) / 1000, tz=timezone.utc),
-            bids=tuple(OrderBookLevel(float(price), float(qty)) for price, qty in result.get("b", [])),
-            asks=tuple(OrderBookLevel(float(price), float(qty)) for price, qty in result.get("a", [])),
+            bids=tuple(OrderBookLevel(float(price), float(qty)) for price, qty in bids),
+            asks=tuple(OrderBookLevel(float(price), float(qty)) for price, qty in asks),
         )
 
     async def get_derivatives(self, symbol: str) -> DerivativesState:
@@ -67,7 +79,12 @@ class BybitPublicRest(ExchangeAdapter):
         ticker = await self._get(
             "/v5/market/tickers", {"category": self.CATEGORY, "symbol": symbol}
         )
-        item = ticker.get("list", [])[0]
+        items = ticker.get("list", [])
+        if not isinstance(items, list) or not items:
+            raise RuntimeError("Bybit ticker result is empty")
+        item = items[0]
+        if not isinstance(item, dict):
+            raise RuntimeError("Bybit ticker item has an invalid shape")
         funding = item.get("fundingRate")
         open_interest = item.get("openInterest")
         return DerivativesState(
