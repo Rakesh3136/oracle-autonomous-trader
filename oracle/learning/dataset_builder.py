@@ -18,7 +18,9 @@ class WalkForwardWindow:
     train_end: datetime
     validation_end: datetime
     test_end: datetime
-    rows: tuple[TrainingRow, ...]
+    train: tuple[TrainingRow, ...]
+    validation: tuple[TrainingRow, ...]
+    test: tuple[TrainingRow, ...]
 
 class TrainingDatasetBuilder:
     def __init__(self) -> None:
@@ -29,29 +31,28 @@ class TrainingDatasetBuilder:
         feature_rows = self.features.transform(candles)
         label_rows = self.labels.transform(candles, (horizon,))
         labels = {(r.timestamp, r.symbol): r for r in label_rows}
-        rows: list[TrainingRow] = []
-        for feature in feature_rows:
-            label = labels.get((feature.timestamp, feature.symbol))
-            if label is not None:
-                rows.append(TrainingRow(feature.timestamp, feature.symbol, feature, label))
-        return rows
+        return [TrainingRow(f.timestamp, f.symbol, f, labels[(f.timestamp, f.symbol)])
+                for f in feature_rows if (f.timestamp, f.symbol) in labels]
 
     def walk_forward(self, rows: list[TrainingRow], train_days: int, validation_days: int,
                      test_days: int, step_days: int) -> list[WalkForwardWindow]:
         if min(train_days, validation_days, test_days, step_days) <= 0:
             raise ValueError("window sizes must be positive")
-        if not rows:
-            return []
         ordered = sorted(rows, key=lambda r: r.timestamp)
-        start = ordered[0].timestamp
-        end = ordered[-1].timestamp
+        if not ordered:
+            return []
+        start, end = ordered[0].timestamp, ordered[-1].timestamp
         windows: list[WalkForwardWindow] = []
         cursor = start
         while cursor + timedelta(days=train_days + validation_days + test_days) <= end:
             train_end = cursor + timedelta(days=train_days)
             validation_end = train_end + timedelta(days=validation_days)
             test_end = validation_end + timedelta(days=test_days)
-            window_rows = tuple(r for r in ordered if cursor <= r.timestamp < test_end)
-            windows.append(WalkForwardWindow(cursor, train_end, validation_end, test_end, window_rows))
+            train = tuple(r for r in ordered if cursor <= r.timestamp < train_end)
+            validation = tuple(r for r in ordered if train_end <= r.timestamp < validation_end)
+            test = tuple(r for r in ordered if validation_end <= r.timestamp < test_end)
+            if train and validation and test:
+                windows.append(WalkForwardWindow(cursor, train_end, validation_end, test_end,
+                                                 train, validation, test))
             cursor += timedelta(days=step_days)
         return windows
