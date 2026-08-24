@@ -1,9 +1,7 @@
-"""Safe Bybit adapter boundary.
+"""Fail-closed Bybit adapter boundary.
 
-This module intentionally contains no live-network implementation yet. It defines
-an explicit venue configuration and translation contract so Testnet/live adapters
-cannot be confused accidentally. Secrets must come from the runtime environment,
-never source control.
+Testnet/simulation translation is supported; live network submission remains
+explicitly disabled. Secrets must come from environment variables, never source.
 """
 from dataclasses import dataclass
 from enum import Enum
@@ -24,19 +22,17 @@ class LiveTradingDisabled(RuntimeError):
     pass
 
 class BybitAdapter:
-    """Translation boundary; network submission is deliberately disabled."""
     def __init__(self, config: BybitConfig | None = None, enable_live: bool = False) -> None:
         self.config = config or BybitConfig()
         if self.config.recv_window_ms <= 0:
             raise ValueError("recv_window_ms must be positive")
         if self.config.environment is BybitEnvironment.MAINNET and not enable_live:
-            raise LiveTradingDisabled("mainnet execution is disabled until explicit live gate is implemented")
+            raise LiveTradingDisabled("mainnet execution is disabled")
         self._enable_live = enable_live
 
     def translate(self, intent: OrderIntent) -> dict[str, str]:
         payload = {
-            "category": "linear",
-            "symbol": intent.symbol,
+            "category": "linear", "symbol": intent.symbol,
             "side": "Buy" if intent.side is Side.BUY else "Sell",
             "orderType": "Market" if intent.order_type is OrderType.MARKET else "Limit",
             "qty": str(intent.quantity),
@@ -48,5 +44,5 @@ class BybitAdapter:
 
     def submit(self, intent: OrderIntent) -> bool:
         if not self._enable_live:
-            raise LiveTradingDisabled("Bybit submission is disabled; use Testnet/simulation adapter")
-        raise LiveTradingDisabled("live network submission is not implemented yet")
+            raise LiveTradingDisabled("Bybit submission disabled; use Testnet/simulation")
+        raise LiveTradingDisabled("live network submission is not implemented")
