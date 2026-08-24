@@ -29,7 +29,7 @@ class PaperReplayRunner:
                 if result.approved:
                     approved += 1
                     return True
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — paper replay records strategy failures.
                 errors.append(type(exc).__name__)
             return False
 
