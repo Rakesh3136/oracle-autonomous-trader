@@ -1,11 +1,14 @@
 """Leakage-safe OHLCV feature generation from information available at each candle."""
 from dataclasses import dataclass
+from datetime import datetime
 from math import log
+
 from oracle.learning.dataset import Candle
+
 
 @dataclass(frozen=True)
 class FeatureRow:
-    timestamp: object
+    timestamp: datetime
     symbol: str
     return_1: float
     return_5: float
@@ -15,6 +18,7 @@ class FeatureRow:
     lower_wick_pct: float
     volume_change: float
     volatility_10: float
+
 
 class FeatureEngine:
     def transform(self, candles: list[Candle]) -> list[FeatureRow]:
@@ -30,11 +34,29 @@ class FeatureEngine:
             body = abs(c.close - c.open)
             upper = c.high - max(c.open, c.close)
             lower = min(c.open, c.close) - c.low
-            returns = [log(closes[j] / closes[j - 1]) for j in range(max(1, i - 9), i + 1)]
-            mean = sum(returns) / len(returns)
-            variance = sum((x - mean) ** 2 for x in returns) / len(returns)
-            vol_change = 0.0 if i == 0 or candles[i - 1].volume == 0 else c.volume / candles[i - 1].volume - 1
-            rows.append(FeatureRow(c.timestamp, c.symbol, c.close / prev - 1,
-                                   c.close / prev5 - 1, rng / base, body / rng,
-                                   upper / rng, lower / rng, vol_change, variance ** 0.5))
+            returns = [
+                log(closes[j] / closes[j - 1])
+                for j in range(max(1, i - 9), i + 1)
+            ]
+            mean_return = sum(returns) / len(returns)
+            variance = sum((x - mean_return) ** 2 for x in returns) / len(returns)
+            vol_change = (
+                0.0
+                if i == 0 or candles[i - 1].volume == 0
+                else c.volume / candles[i - 1].volume - 1
+            )
+            rows.append(
+                FeatureRow(
+                    c.timestamp,
+                    c.symbol,
+                    c.close / prev - 1,
+                    c.close / prev5 - 1,
+                    rng / base,
+                    body / rng,
+                    upper / rng,
+                    lower / rng,
+                    vol_change,
+                    variance**0.5,
+                )
+            )
         return rows
