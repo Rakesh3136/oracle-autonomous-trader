@@ -6,7 +6,9 @@ paper/Testnet the default.
 """
 from dataclasses import dataclass
 from decimal import Decimal
-from oracle.execution.bybit_adapter import VenueMode
+
+from oracle.execution.bybit_adapter import BybitEnvironment
+
 
 @dataclass(frozen=True)
 class InstrumentRules:
@@ -16,6 +18,7 @@ class InstrumentRules:
     min_price: Decimal
     price_tick: Decimal
 
+
 @dataclass(frozen=True)
 class MarketSnapshot:
     symbol: str
@@ -23,8 +26,9 @@ class MarketSnapshot:
     ask: Decimal
     timestamp_ms: int
 
+
 class MarketGateway:
-    def __init__(self, mode: VenueMode = VenueMode.PAPER) -> None:
+    def __init__(self, mode: BybitEnvironment = BybitEnvironment.TESTNET) -> None:
         self.mode = mode
         self._rules: dict[str, InstrumentRules] = {}
 
