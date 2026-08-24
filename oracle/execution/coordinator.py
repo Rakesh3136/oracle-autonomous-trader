@@ -31,7 +31,7 @@ class ExecutionCoordinator:
         self._machines[intent.intent_id] = machine
         try:
             accepted = bool(send(intent))
-        except Exception:
+        except Exception:  # noqa: BLE001 — unknown submission outcome must fail closed.
             machine.transition(OrderState.UNKNOWN)
             self._halted = True
             return ExecutionResult(intent.intent_id, machine.state, "submission exception; reconciliation required")
