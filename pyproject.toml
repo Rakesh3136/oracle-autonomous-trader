@@ -28,7 +28,5 @@ addopts = "-q"
 [tool.ruff]
 line-length = 100
 
-automatic = false
-
 [tool.mypy]
 strict = true
