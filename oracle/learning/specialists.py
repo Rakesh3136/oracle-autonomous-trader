@@ -1,8 +1,10 @@
 """Regime-specific specialist models and a conservative meta-controller."""
 from dataclasses import dataclass
+
+from oracle.learning.dataset_builder import TrainingRow
 from oracle.learning.model import LogisticBaseline, Prediction
 from oracle.learning.regime import Regime
-from oracle.learning.dataset_builder import TrainingRow
+
 
 @dataclass(frozen=True)
 class SpecialistDecision:
@@ -10,6 +12,7 @@ class SpecialistDecision:
     prediction: Prediction
     confidence: float
     trade_allowed: bool
+
 
 class RegimeSpecialist:
     def __init__(self, regime: Regime) -> None:
@@ -30,13 +33,17 @@ class RegimeSpecialist:
         confidence = abs(prediction.probability_up - 0.5) * 2.0
         return SpecialistDecision(self.regime, prediction, confidence, confidence >= min_confidence)
 
+
 class MetaController:
     """Routes to the specialist matching the observed regime; otherwise abstains."""
+
     def __init__(self) -> None:
-        self.specialists = {regime: RegimeSpecialist(regime) for regime in Regime}
+        self.specialists: dict[Regime, RegimeSpecialist] = {
+            regime: RegimeSpecialist(regime) for regime in Regime
+        }
 
     def fit(self, rows: list[TrainingRow]) -> None:
-        buckets = {regime: [] for regime in Regime}
+        buckets: dict[Regime, list[TrainingRow]] = {regime: [] for regime in Regime}
         for row in rows:
             buckets[row.regime].append(row)
         for regime, bucket in buckets.items():
