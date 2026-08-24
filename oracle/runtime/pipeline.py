@@ -6,7 +6,7 @@ on missing evidence and never enables live execution by itself.
 """
 from dataclasses import dataclass
 
-from oracle.intelligence.council_v2 import EvidenceCouncil, SpecialistView
+from oracle.intelligence.council_v2 import EvidenceCouncil
 from oracle.intelligence.specialists import (
     MeanReversionSpecialist,
     MomentumSpecialist,
