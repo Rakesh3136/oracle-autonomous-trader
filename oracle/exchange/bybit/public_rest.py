@@ -100,7 +100,7 @@ class BybitPublicRest(ExchangeAdapter):
         try:
             await self._get("/v5/market/time", {})
             return True
-        except (httpx.HTTPError, RuntimeError, KeyError, ValueError):
+        except (httpx.HTTPError, RuntimeError, TypeError, KeyError, ValueError):
             return False
 
     async def close(self) -> None:
