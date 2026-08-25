@@ -32,6 +32,16 @@ class SizingDecision:
     reasons: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class PortfolioContext:
+    equity: float
+    current_heat: float = 0.0
+    daily_pnl_fraction: float = 0.0
+    existing_notional: float = 0.0
+    open_positions: int = 0
+    peak_equity: float | None = None
+
+
 class PortfolioRisk:
     """Read-only portfolio gate used by the runtime decision boundary."""
 
@@ -123,13 +133,3 @@ class PortfolioRiskManager:
     @property
     def halt_reason(self) -> str:
         return self._halt_reason
-
-
-@dataclass(frozen=True)
-class PortfolioContext:
-    equity: float
-    current_heat: float = 0.0
-    daily_pnl_fraction: float = 0.0
-    existing_notional: float = 0.0
-    open_positions: int = 0
-    peak_equity: float | None = None
