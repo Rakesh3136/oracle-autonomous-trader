@@ -24,12 +24,12 @@ class BybitPublicRest(ExchangeAdapter):
         response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, dict):
-            raise RuntimeError("Bybit API returned a non-object response")
+            raise TypeError("Bybit API returned a non-object response")
         if payload.get("retCode") != 0:
             raise RuntimeError(f"Bybit API error: {payload.get('retCode')} {payload.get('retMsg')}")
         result = payload.get("result")
         if not isinstance(result, dict):
-            raise RuntimeError("Bybit API response has an invalid result")
+            raise TypeError("Bybit API response has an invalid result")
         return cast(dict[str, Any], result)
 
     async def get_candles(self, symbol: str, interval: str, limit: int = 200) -> list[Candle]:
@@ -39,7 +39,7 @@ class BybitPublicRest(ExchangeAdapter):
         )
         rows = result.get("list", [])
         if not isinstance(rows, list):
-            raise RuntimeError("Bybit kline result has an invalid list")
+            raise TypeError("Bybit kline result has an invalid list")
         candles: list[Candle] = []
         for row in reversed(rows):
             if not isinstance(row, list) or len(row) < 6:
@@ -66,7 +66,7 @@ class BybitPublicRest(ExchangeAdapter):
         bids = result.get("b", [])
         asks = result.get("a", [])
         if not isinstance(bids, list) or not isinstance(asks, list):
-            raise RuntimeError("Bybit order book result has an invalid shape")
+            raise TypeError("Bybit order book result has an invalid shape")
         return OrderBook(
             symbol=symbol.upper(),
             timestamp=datetime.fromtimestamp(int(result["ts"]) / 1000, tz=timezone.utc),
@@ -84,7 +84,7 @@ class BybitPublicRest(ExchangeAdapter):
             raise RuntimeError("Bybit ticker result is empty")
         item = items[0]
         if not isinstance(item, dict):
-            raise RuntimeError("Bybit ticker item has an invalid shape")
+            raise TypeError("Bybit ticker item has an invalid shape")
         funding = item.get("fundingRate")
         open_interest = item.get("openInterest")
         return DerivativesState(
