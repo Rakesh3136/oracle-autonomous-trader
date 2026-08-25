@@ -12,6 +12,14 @@ from oracle.exchange.base import ExchangeAdapter
 from oracle.market.models import Candle, DerivativesState, OrderBook, OrderBookLevel
 
 
+def _optional_float(value: object) -> float | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, (int, float, str)):
+        return float(value)
+    raise TypeError(f"Expected a numeric value, got {type(value).__name__}")
+
+
 class BybitPublicRest(ExchangeAdapter):
     CATEGORY = "linear"
 
@@ -90,10 +98,10 @@ class BybitPublicRest(ExchangeAdapter):
         return DerivativesState(
             symbol=symbol,
             timestamp=datetime.now(timezone.utc),
-            funding_rate=float(funding) if funding not in (None, "") else None,
-            open_interest=float(open_interest) if open_interest not in (None, "") else None,
-            mark_price=float(item["markPrice"]) if item.get("markPrice") else None,
-            index_price=float(item["indexPrice"]) if item.get("indexPrice") else None,
+            funding_rate=_optional_float(funding),
+            open_interest=_optional_float(open_interest),
+            mark_price=_optional_float(item.get("markPrice")),
+            index_price=_optional_float(item.get("indexPrice")),
         )
 
     async def health(self) -> bool:
