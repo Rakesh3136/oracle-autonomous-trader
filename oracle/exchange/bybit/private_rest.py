@@ -57,12 +57,12 @@ class BybitPrivateRest:
         response.raise_for_status()
         result = response.json()
         if not isinstance(result, dict):
-            raise RuntimeError("Bybit API returned a non-object response")
+            raise TypeError("Bybit API returned a non-object response")
         if result.get("retCode") != 0:
             raise RuntimeError(f"Bybit API error: {result.get('retCode')} {result.get('retMsg')}")
         payload_result = result.get("result", {})
         if not isinstance(payload_result, dict):
-            raise RuntimeError("Bybit API response has an invalid result")
+            raise TypeError("Bybit API response has an invalid result")
         return cast(dict[str, Any], payload_result)
 
     def wallet_balance(self, account_type: str = "UNIFIED", coin: str = "USDT") -> dict[str, Any]:
