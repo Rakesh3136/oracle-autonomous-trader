@@ -37,7 +37,10 @@ class FeatureEngine:
             returns = [
                 log(closes[j] / closes[j - 1])
                 for j in range(max(1, i - 9), i + 1)
+                if j > 0
             ]
+            if not returns:
+                returns = [0.0]
             mean_return = sum(returns) / len(returns)
             variance = sum((x - mean_return) ** 2 for x in returns) / len(returns)
             vol_change = (
