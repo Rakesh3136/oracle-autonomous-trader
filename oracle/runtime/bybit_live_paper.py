@@ -1,9 +1,7 @@
 """Live-market-data paper trader for Bybit public data.
 
-This service uses public Bybit market data only. It retrains the transparent
-baseline on labels whose future outcomes are already known, then predicts the
-newest candle using features available at that candle. Orders are always sent
-to the local paper simulator; this module has no authenticated order client.
+Public Bybit data drives the model, while every order remains local paper
+execution. No authenticated order client is used here.
 """
 import asyncio
 from dataclasses import dataclass
@@ -16,6 +14,7 @@ from oracle.learning.dataset_builder import TrainingDatasetBuilder
 from oracle.learning.features import FeatureEngine
 from oracle.learning.model import LogisticBaseline
 from oracle.learning.economics import TradeEconomicsEngine
+from oracle.market.models import Candle
 from oracle.paper.performance import PaperPerformance, PerformanceReport
 
 
@@ -30,7 +29,7 @@ class LivePaperSnapshot:
 
 
 class BybitLivePaperTrader:
-    """Retrain on known historical outcomes and paper-trade the newest data."""
+    """Retrain on matured outcomes and paper-trade each newly closed candle."""
 
     def __init__(
         self,
@@ -53,9 +52,10 @@ class BybitLivePaperTrader:
         self.simulator = ExecutionSimulator(slippage_bps=2.0)
         self.performance = PaperPerformance(starting_equity)
         self.open_fill: SimulatedFill | None = None
+        self.last_processed_timestamp = None
 
     @staticmethod
-    def _learning_candles(candles: list[object]) -> list[LearningCandle]:
+    def _learning_candles(candles: list[Candle]) -> list[LearningCandle]:
         return [
             LearningCandle(
                 timestamp=c.timestamp,
@@ -74,28 +74,44 @@ class BybitLivePaperTrader:
         if len(candles) < 60:
             raise RuntimeError("not enough live candles for paper model")
 
-        learning_candles = self._learning_candles(candles)
+        # Bybit's final REST kline can still be forming. Use the previous candle
+        # as the only fully closed bar so the model never trains/predicts on a
+        # partially formed candle.
+        closed_candle = candles[-2]
+        if self.last_processed_timestamp == closed_candle.timestamp:
+            return LivePaperSnapshot(
+                self.symbol,
+                closed_candle.close,
+                0.5,
+                False,
+                "waiting for a new closed candle",
+                self.performance.report(),
+            )
+
+        learning_candles = self._learning_candles(candles[:-1])
         rows = self.dataset.build(learning_candles, horizon=5, regime_window=20)
         if len(rows) < 40:
             raise RuntimeError("not enough labeled historical candles for training")
 
-        # The newest candle has no known future outcome. Train only on older
-        # labeled rows, then infer on the newest feature row without using its label.
-        self.model.fit(rows[:-1])
+        # All training rows have matured future outcomes. The newest closed
+        # candle is prediction-only and its future label is not used.
+        self.model.fit(rows)
         feature_rows = self.features.transform(learning_candles)
         latest_feature = feature_rows[-1]
         probability = self.model.probability_up(latest_feature)
-        price = candles[-1].close
+        price = closed_candle.close
 
-        target_return = 0.006
-        stop_return = 0.004
-        economics = self.economics.evaluate(probability, target_return, stop_return)
+        economics = self.economics.evaluate(probability, 0.006, 0.004)
         approved = economics.trade_allowed
         reason = economics.reason
 
         if self.open_fill is not None:
             self.performance.record(
-                PaperPerformance.close_fill(self.open_fill, price, fees=0.0006 * self.open_fill.quantity * self.open_fill.fill_price)
+                PaperPerformance.close_fill(
+                    self.open_fill,
+                    price,
+                    fees=0.0006 * self.open_fill.quantity * self.open_fill.fill_price,
+                )
             )
             self.open_fill = None
 
@@ -104,6 +120,7 @@ class BybitLivePaperTrader:
             intent = OrderIntent.make(self.symbol, side, OrderType.MARKET, 1.0)
             self.open_fill = self.simulator.submit(intent, price)
 
+        self.last_processed_timestamp = closed_candle.timestamp
         return LivePaperSnapshot(
             self.symbol,
             price,
