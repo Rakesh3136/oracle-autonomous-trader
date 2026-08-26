@@ -1,16 +1,16 @@
-"""Small dependency-free probabilistic baseline for leakage-safe model evaluation.
-
-This is intentionally a transparent baseline, not a claim of predictive superiority.
-A production ML backend can implement the same interface later.
-"""
+"""Small dependency-free probabilistic baseline for leakage-safe model evaluation."""
 from dataclasses import dataclass
 from math import exp
+
 from oracle.learning.dataset_builder import TrainingRow
+from oracle.learning.features import FeatureRow
+
 
 @dataclass(frozen=True)
 class Prediction:
     probability_up: float
     expected_return: float
+
 
 class LogisticBaseline:
     def __init__(self, learning_rate: float = 0.05, epochs: int = 100) -> None:
@@ -23,9 +23,20 @@ class LogisticBaseline:
 
     @staticmethod
     def _vector(row: TrainingRow) -> list[float]:
-        f = row.features
-        return [f.return_1, f.return_5, f.range_pct, f.body_pct,
-                f.upper_wick_pct, f.lower_wick_pct, f.volume_change, f.volatility_10]
+        return LogisticBaseline.vector_from_features(row.features)
+
+    @staticmethod
+    def vector_from_features(features: FeatureRow) -> list[float]:
+        return [
+            features.return_1,
+            features.return_5,
+            features.range_pct,
+            features.body_pct,
+            features.upper_wick_pct,
+            features.lower_wick_pct,
+            features.volume_change,
+            features.volatility_10,
+        ]
 
     @staticmethod
     def _sigmoid(x: float) -> float:
@@ -47,19 +58,20 @@ class LogisticBaseline:
                 for i, value in enumerate(x):
                     self.weights[i] -= self.learning_rate * error * value
 
-    def predict(self, row: TrainingRow) -> Prediction:
+    def probability_up(self, features: FeatureRow) -> float:
         if not self.weights:
             raise RuntimeError("model has not been fitted")
-        x = self._vector(row)
-        p = self._sigmoid(self.bias + sum(w * v for w, v in zip(self.weights, x)))
-        return Prediction(p, (2.0 * p - 1.0) * abs(row.label.future_return))
+        x = self.vector_from_features(features)
+        return self._sigmoid(self.bias + sum(w * v for w, v in zip(self.weights, x)))
+
+    def predict(self, row: TrainingRow) -> Prediction:
+        probability = self.probability_up(row.features)
+        return Prediction(probability, (2.0 * probability - 1.0) * abs(row.label.future_return))
 
     def score(self, rows: list[TrainingRow]) -> float:
         if not rows:
             raise ValueError("cannot score empty data")
         correct = 0
         for row in rows:
-            prediction = self.predict(row)
-            actual_up = row.label.direction > 0
-            correct += int((prediction.probability_up >= 0.5) == actual_up)
+            correct += int((self.probability_up(row.features) >= 0.5) == (row.label.direction > 0))
         return correct / len(rows)
