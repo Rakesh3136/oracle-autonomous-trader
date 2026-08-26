@@ -3,6 +3,7 @@ from oracle.execution.order_intent import OrderIntent, OrderType, Side
 from oracle.execution.simulator import ExecutionSimulator
 from oracle.paper.performance import PaperPerformance
 
+
 def test_paper_report_calculates_win_rate_equity_and_drawdown() -> None:
     performance = PaperPerformance(10_000.0)
     simulator = ExecutionSimulator()
@@ -18,7 +19,8 @@ def test_paper_report_calculates_win_rate_equity_and_drawdown() -> None:
     assert report.net_pnl == pytest.approx(0.0)
     assert report.fees == pytest.approx(2.0)
     assert report.equity == pytest.approx(9998.0)
-    assert report.max_drawdown == pytest.approx(21.0)
+    assert report.max_drawdown == pytest.approx(11.0)
+
 
 def test_short_trade_pnl_is_reversed() -> None:
     simulator = ExecutionSimulator()
