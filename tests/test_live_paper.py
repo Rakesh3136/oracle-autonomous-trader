@@ -44,10 +44,10 @@ async def test_repeated_candle_is_not_traded_twice() -> None:
 
 @pytest.mark.asyncio
 async def test_opposite_signal_closes_and_reverses_in_paper_mode() -> None:
-    feed = FakeFeed([100.0, 100.7, 99.0])
+    feed = FakeFeed([100.0, 100.7, 95.0])
     trader = LivePaperTrader(feed, TraderCouncil([MomentumStrategy()]), quantity=1.0)
     await trader.step()
-    feed.candles = feed.candles[:2] + [Candle("BTCUSDT", "1", feed.candles[1].timestamp + timedelta(minutes=1), 99.0, 99.0, 99.0, 99.0, 1.0)]
+    feed.candles = feed.candles[:2] + [Candle("BTCUSDT", "1", feed.candles[1].timestamp + timedelta(minutes=1), 95.0, 95.0, 95.0, 95.0, 1.0)]
     step = await trader.step()
     assert step.action is Action.SHORT
     assert step.closed and step.opened
