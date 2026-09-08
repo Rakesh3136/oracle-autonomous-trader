@@ -2,9 +2,9 @@
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import json
 from pathlib import Path
 from typing import Protocol, Sequence
-import json
 
 from oracle.execution.order_intent import OrderIntent, OrderType, Side
 from oracle.execution.simulator import ExecutionSimulator, SimulatedFill
@@ -57,12 +57,14 @@ class LivePaperRunner:
         completed.sort(key=lambda candle: candle.timestamp)
         if not completed:
             return None
-        candle = completed[-1]
-        if self._last_processed is not None and candle.timestamp <= self._last_processed:
+        new_candles = [c for c in completed if self._last_processed is None or c.timestamp > self._last_processed]
+        if not new_candles:
             return None
+        for candle in new_candles[:-1]:
+            self._append_unique(candle)
+        candle = new_candles[-1]
         self._last_processed = candle.timestamp
-        if not self.history or candle.timestamp > self.history[-1].timestamp:
-            self.history.append(candle)
+        self._append_unique(candle)
         closes = [item.close for item in self.history]
         if len(closes) < 20:
             return self._record(PaperCycle(candle.timestamp, self.symbol, candle.close, False, "warming up"))
@@ -82,6 +84,10 @@ class LivePaperRunner:
         fill = self.simulator.submit(intent, candle.close)
         return self._record(PaperCycle(candle.timestamp, self.symbol, candle.close, True,
                                        result.reason, side, preliminary.position.quantity, fill))
+
+    def _append_unique(self, candle: Candle) -> None:
+        if not self.history or candle.timestamp > self.history[-1].timestamp:
+            self.history.append(candle)
 
     def _interval_delta(self) -> timedelta:
         if self.interval == "D":
