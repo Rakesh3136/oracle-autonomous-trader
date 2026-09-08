@@ -21,12 +21,12 @@ class TraderCouncil:
         active = [s for s in signals if s.action in (Action.LONG, Action.SHORT)]
         if not active:
             return CouncilDecision(Action.NO_TRADE, 0.0, 0.0, ("no directional consensus",), signals)
-        long = sum(s.confidence for s in active if s.action is Action.LONG)
-        short = sum(s.confidence for s in active if s.action is Action.SHORT)
+        long = sum(s.confidence for s in active if s.action == Action.LONG)
+        short = sum(s.confidence for s in active if s.action == Action.SHORT)
         total = long + short
         if not total or long == short:
             return CouncilDecision(Action.NO_TRADE, 0.0, 0.0, ("directional disagreement",), signals)
         action = Action.LONG if long > short else Action.SHORT
         confidence = max(long, short) / total
-        dissent = tuple(s.strategy for s in active if s.action is not action)
+        dissent = tuple(s.strategy for s in active if s.action != action)
         return CouncilDecision(action, confidence, confidence, dissent, signals)
